@@ -1,3 +1,5 @@
+import { apiUrl } from './apiUrl';
+
 export type Product = {
   id: string;
   name: string;
@@ -65,7 +67,7 @@ const buildQuery = (params: GetProductsParams) => {
 };
 
 export const getProducts = async (params: GetProductsParams = {}): Promise<ProductsListResponse> => {
-  const url = `/api/products${buildQuery(params)}`;
+  const url = apiUrl(`/api/products${buildQuery(params)}`);
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch products');
   const data = await res.json();
@@ -73,7 +75,7 @@ export const getProducts = async (params: GetProductsParams = {}): Promise<Produ
 };
 
 export const getProductById = async (id: string): Promise<Product> => {
-  const res = await fetch(`/api/products/${id}`);
+  const res = await fetch(apiUrl(`/api/products/${id}`));
   if (!res.ok) throw new Error('Failed to fetch product');
   return res.json();
 };
@@ -86,7 +88,7 @@ export type ProductsMeta = {
 };
 
 export const getProductsMeta = async (): Promise<ProductsMeta> => {
-  const res = await fetch('/api/products/meta');
+  const res = await fetch(apiUrl('/api/products/meta'));
   if (!res.ok) throw new Error('Failed to fetch products meta');
   const data = await res.json();
   return data;

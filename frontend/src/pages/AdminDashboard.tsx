@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getProducts, getProductsMeta, type Product, type ProductsMeta } from '@/services/productsApi';
 import { createProduct, updateProduct, deleteProduct } from '@/services/adminApi';
 import AdminHeader from '@/components/AdminHeader';
+import { apiUrl } from '@/services/apiUrl';
 
 const AdminDashboard = () => {
   const { user, token, loading: authLoading } = useAuth();
@@ -83,7 +84,7 @@ const AdminDashboard = () => {
     try {
       const uploadFormData = new FormData();
       uploadFormData.append('image', file);
-      const res = await fetch('/api/admin/upload-image', {
+      const res = await fetch(apiUrl('/api/admin/upload-image'), {
         method: 'POST',
         body: uploadFormData,
       });

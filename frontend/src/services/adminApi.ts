@@ -1,7 +1,9 @@
 import { Product } from './productsApi';
 
+import { apiUrl } from './apiUrl';
+
 export const createProduct = async (productData: Partial<Product>): Promise<{ message: string; product: Product }> => {
-  const res = await fetch('/api/products', {
+  const res = await fetch(apiUrl('/api/products'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -16,7 +18,7 @@ export const createProduct = async (productData: Partial<Product>): Promise<{ me
 };
 
 export const updateProduct = async (id: string, productData: Partial<Product>): Promise<{ message: string; product: Product }> => {
-  const res = await fetch(`/api/products/${id}`, {
+  const res = await fetch(apiUrl(`/api/products/${id}`), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -31,7 +33,7 @@ export const updateProduct = async (id: string, productData: Partial<Product>): 
 };
 
 export const deleteProduct = async (id: string): Promise<{ message: string }> => {
-  const res = await fetch(`/api/products/${id}`, {
+  const res = await fetch(apiUrl(`/api/products/${id}`), {
     method: 'DELETE',
   });
   if (!res.ok) {

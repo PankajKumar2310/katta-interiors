@@ -1,7 +1,9 @@
 import { AuthUser, ProfileResponse } from './authApi';
 
+import { apiUrl } from './apiUrl';
+
 export const updateProfile = async (token: string, name: string): Promise<ProfileResponse> => {
-  const res = await fetch('/api/auth/profile', {
+  const res = await fetch(apiUrl('/api/auth/profile'), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -17,7 +19,7 @@ export const updateProfile = async (token: string, name: string): Promise<Profil
 };
 
 export const changePassword = async (token: string, currentPassword: string, newPassword: string): Promise<{ message: string }> => {
-  const res = await fetch('/api/auth/change-password', {
+  const res = await fetch(apiUrl('/api/auth/change-password'), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

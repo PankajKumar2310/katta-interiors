@@ -1,3 +1,5 @@
+import { apiUrl } from './apiUrl';
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -17,7 +19,7 @@ export interface ProfileResponse {
 }
 
 export const register = async (name: string, email: string, password: string): Promise<AuthResponse> => {
-  const res = await fetch('/api/auth/register', {
+  const res = await fetch(apiUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password }),
@@ -30,7 +32,7 @@ export const register = async (name: string, email: string, password: string): P
 };
 
 export const login = async (email: string, password: string): Promise<AuthResponse> => {
-  const res = await fetch('/api/auth/login', {
+  const res = await fetch(apiUrl('/api/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -43,7 +45,7 @@ export const login = async (email: string, password: string): Promise<AuthRespon
 };
 
 export const getProfile = async (token: string): Promise<ProfileResponse> => {
-  const res = await fetch('/api/auth/profile', {
+  const res = await fetch(apiUrl('/api/auth/profile'), {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {

@@ -12,7 +12,21 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN;
+const allowedOrigins = corsOrigin
+  ? corsOrigin
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean)
+  : null;
+
+app.use(
+  cors({
+    origin: allowedOrigins || true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(express.json());
 
 // Database connection

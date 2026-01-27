@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mail, Lock, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiUrl } from '@/services/apiUrl';
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -18,7 +19,7 @@ const AdminLogin = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetch(apiUrl('/api/admin/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
