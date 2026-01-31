@@ -9,6 +9,7 @@ export type Product = {
   finish?: string;
   price: number;
   image: string;
+  images?: string[];
   description: string;
   specs: Record<string, string>;
   isFeatured?: boolean;

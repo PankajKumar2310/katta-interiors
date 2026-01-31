@@ -1,6 +1,17 @@
 import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 
+const parseImages = (images) => {
+  if (Array.isArray(images)) return images.map((s) => String(s).trim()).filter(Boolean);
+  if (typeof images === 'string' && images.trim().length > 0) {
+    return images
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
 const toClientProduct = (doc) => {
   const obj = doc.toObject({ flattenMaps: true });
   const { _id, __v, ...rest } = obj;
@@ -96,6 +107,16 @@ export const getProducts = async (req, res, next) => {
       totalPages: Math.ceil(totalCount / pageSize) || 1,
     });
   } catch (err) {
+    if (err?.name === 'ValidationError') {
+      const firstKey = err?.errors ? Object.keys(err.errors)[0] : null;
+      const msg = firstKey ? err.errors[firstKey]?.message : err.message;
+      return res.status(400).json({ message: msg || 'Validation failed' });
+    }
+
+    if (err?.name === 'CastError') {
+      return res.status(400).json({ message: err.message || 'Invalid value' });
+    }
+
     next(err);
   }
 };
@@ -126,24 +147,37 @@ export const createProduct = async (req, res, next) => {
       finish,
       price,
       image,
+      images,
       description,
       specs,
       isFeatured = false,
     } = req.body;
 
-    if (!name || !category || !subcategory || !price || !image || !description) {
+    const parsedImages = images !== undefined ? parseImages(images) : [];
+    const finalImages = parsedImages.length > 0 ? parsedImages : image ? [String(image).trim()].filter(Boolean) : [];
+
+    if (finalImages.length === 0) {
+      return res.status(400).json({ message: 'At least one product image is required' });
+    }
+
+    if (finalImages.length > 5) {
+      return res.status(400).json({ message: 'Maximum 5 images allowed per product' });
+    }
+
+    if (!name || !category || !subcategory || !price || !description) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
     const product = new Product({
-      name,
-      category,
-      subcategory,
-      thickness,
-      finish,
+      name: typeof name === 'string' ? name.trim() : name,
+      category: typeof category === 'string' ? category.trim() : category,
+      subcategory: typeof subcategory === 'string' ? subcategory.trim() : subcategory,
+      thickness: typeof thickness === 'string' ? thickness.trim() : thickness,
+      finish: typeof finish === 'string' ? finish.trim() : finish,
       price: Number(price),
-      image,
-      description,
+      image: finalImages[0],
+      images: finalImages,
+      description: typeof description === 'string' ? description.trim() : description,
       specs: specs || {},
       isFeatured: Boolean(isFeatured),
     });
@@ -169,6 +203,28 @@ export const updateProduct = async (req, res, next) => {
     const updates = req.body;
     if (updates.price !== undefined) updates.price = Number(updates.price);
     if (updates.isFeatured !== undefined) updates.isFeatured = Boolean(updates.isFeatured);
+
+    if (updates.images !== undefined) {
+      const parsedImages = parseImages(updates.images);
+
+      if (parsedImages.length === 0) {
+        return res.status(400).json({ message: 'At least one product image is required' });
+      }
+
+      if (parsedImages.length > 5) {
+        return res.status(400).json({ message: 'Maximum 5 images allowed per product' });
+      }
+
+      updates.images = parsedImages;
+      updates.image = parsedImages[0];
+    } else if (updates.image !== undefined) {
+      const img = updates.image ? String(updates.image).trim() : '';
+      if (!img) {
+        return res.status(400).json({ message: 'At least one product image is required' });
+      }
+      updates.image = img;
+      updates.images = [img];
+    }
 
     const product = await Product.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
     if (!product) {

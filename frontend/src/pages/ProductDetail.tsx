@@ -17,6 +17,7 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState<Product[]>([]);
   const [quantity, setQuantity] = useState(1);
+  const [activeImage, setActiveImage] = useState('');
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
 
@@ -29,6 +30,8 @@ const ProductDetail = () => {
         const res = await getProductById(id);
         if (!mounted) return;
         setProduct(res);
+        const imgs = Array.isArray((res as any).images) && (res as any).images.length > 0 ? (res as any).images : [res.image];
+        setActiveImage(imgs[0] || res.image);
       } catch (e) {
         console.error(e);
         if (!mounted) return;
@@ -87,8 +90,10 @@ const ProductDetail = () => {
     );
   }
 
+  const images = product.images && product.images.length > 0 ? product.images : [product.image];
+
   const handleAddToCart = () => {
-    addToCart({ id: product.id, name: product.name, price: product.price, image: product.image }, quantity);
+    addToCart({ id: product.id, name: product.name, price: product.price, image: activeImage || product.image }, quantity);
   };
 
   const handleBulkOrder = () => {
@@ -101,10 +106,19 @@ const ProductDetail = () => {
       <div className="py-12 px-4">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
           <div className="space-y-4">
-            <img src={product.image} alt={product.name} className="w-full h-96 object-cover rounded-2xl shadow-lg" />
+            <img src={activeImage || product.image} alt={product.name} className="w-full h-96 object-cover rounded-2xl shadow-lg" />
             <div className="flex space-x-2">
-              {[product.image, product.image].map((img, idx) => (
-                <img key={idx} src={img} alt="" className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200" />
+              {images.map((img, idx) => (
+                <img
+                  key={idx}
+                  src={img}
+                  alt=""
+                  onClick={() => setActiveImage(img)}
+                  className={cn(
+                    'w-20 h-20 object-cover rounded-xl cursor-pointer border-2',
+                    (activeImage || product.image) === img ? 'border-primary' : 'border-gray-200'
+                  )}
+                />
               ))}
             </div>
           </div>

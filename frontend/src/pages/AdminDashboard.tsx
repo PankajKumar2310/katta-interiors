@@ -11,11 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Edit, Trash2, Search, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Upload, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getProducts, getProductsMeta, type Product, type ProductsMeta } from '@/services/productsApi';
-import { createProduct, updateProduct, deleteProduct } from '@/services/adminApi';
+import { bulkUploadProductsExcel, createProduct, updateProduct, deleteProduct } from '@/services/adminApi';
 import AdminHeader from '@/components/AdminHeader';
 import { apiUrl } from '@/services/apiUrl';
 
@@ -30,8 +30,10 @@ const AdminDashboard = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingExcel, setUploadingExcel] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [newImageUrl, setNewImageUrl] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     category: '' as Product['category'],
@@ -39,7 +41,7 @@ const AdminDashboard = () => {
     thickness: '',
     finish: '',
     price: '',
-    image: '',
+    images: [] as string[],
     description: '',
     specs: {} as Record<string, string>,
   });
@@ -78,33 +80,100 @@ const AdminDashboard = () => {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return;
-    const file = e.target.files[0];
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const existing = formData.images || [];
+    if (existing.length >= 5) {
+      toast({ title: 'Maximum 5 images allowed', variant: 'destructive' });
+      return;
+    }
+
+    const remainingSlots = 5 - existing.length;
+    const toUpload = files.slice(0, remainingSlots);
+
     setUploadingImage(true);
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append('image', file);
-      const res = await fetch(apiUrl('/api/admin/upload-image'), {
-        method: 'POST',
-        body: uploadFormData,
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      setFormData(prev => ({ ...prev, image: data.imageUrl }));
-      toast({ title: 'Image uploaded successfully' });
+      const uploadedUrls: string[] = [];
+      for (const file of toUpload) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('image', file);
+        const res = await fetch(apiUrl('/api/admin/upload-image'), {
+          method: 'POST',
+          body: uploadFormData,
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        if (data?.imageUrl) uploadedUrls.push(String(data.imageUrl));
+      }
+
+      if (uploadedUrls.length > 0) {
+        setFormData((prev) => ({ ...prev, images: [...(prev.images || []), ...uploadedUrls] }));
+        toast({ title: 'Image uploaded successfully' });
+      }
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally {
       setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const addImageFromUrl = () => {
+    const url = newImageUrl.trim();
+    if (!url) return;
+    const existing = formData.images || [];
+    if (existing.length >= 5) {
+      toast({ title: 'Maximum 5 images allowed', variant: 'destructive' });
+      return;
+    }
+    setFormData((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
+    setNewImageUrl('');
+  };
+
+  const removeImage = (idx: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: (prev.images || []).filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingExcel(true);
+    try {
+      const res = await bulkUploadProductsExcel(file);
+      toast({
+        title: res.message || 'Bulk upload completed',
+        description: `Inserted: ${res.insertedCount}, Failed: ${res.failedCount}`,
+      });
+      fetchProducts(1);
+    } catch (err: any) {
+      toast({ title: 'Bulk upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploadingExcel(false);
+      e.target.value = '';
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (!formData.images || formData.images.length === 0) {
+        toast({ title: 'At least one product image is required', variant: 'destructive' });
+        return;
+      }
+
+      if (formData.images.length > 5) {
+        toast({ title: 'Maximum 5 images allowed per product', variant: 'destructive' });
+        return;
+      }
+
       const productData = {
         ...formData,
         price: Number(formData.price),
+        image: formData.images[0],
       };
       if (editingProduct) {
         await updateProduct(editingProduct.id, productData);
@@ -124,6 +193,7 @@ const AdminDashboard = () => {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    const imgs = Array.isArray((product as any).images) && (product as any).images.length > 0 ? (product as any).images : [product.image];
     setFormData({
       name: product.name,
       category: product.category,
@@ -131,7 +201,7 @@ const AdminDashboard = () => {
       thickness: product.thickness || '',
       finish: product.finish || '',
       price: String(product.price),
-      image: product.image,
+      images: imgs,
       description: product.description,
       specs: product.specs,
     });
@@ -157,10 +227,11 @@ const AdminDashboard = () => {
       thickness: '',
       finish: '',
       price: '',
-      image: '',
+      images: [],
       description: '',
       specs: {},
     });
+    setNewImageUrl('');
   };
 
   const filteredProducts = products.filter(p =>
@@ -182,6 +253,23 @@ const AdminDashboard = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-playfair font-bold text-gray-900">Admin Dashboard</h1>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                id="excelFile"
+                accept=".xlsx,.xls"
+                onChange={handleExcelUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => document.getElementById('excelFile')?.click()}
+                disabled={uploadingExcel}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploadingExcel ? 'Uploading...' : 'Upload Excel'}
+              </Button>
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
               if (!open) {
@@ -213,7 +301,7 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="category">Category</Label>
-                      <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
+                      <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value as Product['category'] })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
@@ -240,19 +328,14 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="image">Product Image</Label>
+                    <Label>Product Images</Label>
                     <div className="space-y-2">
-                      <Input
-                        id="image"
-                        value={formData.image}
-                        onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                        placeholder="Or enter image URL"
-                      />
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center gap-2">
                         <input
                           type="file"
                           id="imageFile"
                           accept="image/*"
+                          multiple
                           onChange={handleImageUpload}
                           className="hidden"
                         />
@@ -260,12 +343,38 @@ const AdminDashboard = () => {
                           type="button"
                           variant="outline"
                           onClick={() => document.getElementById('imageFile')?.click()}
-                          disabled={uploadingImage}
+                          disabled={uploadingImage || (formData.images && formData.images.length >= 5)}
                         >
                           <Upload className="h-4 w-4 mr-2" />
-                          {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                          {uploadingImage ? 'Uploading...' : 'Add From Gallery'}
                         </Button>
+                        <Input
+                          value={newImageUrl}
+                          onChange={(e) => setNewImageUrl(e.target.value)}
+                          placeholder="Paste image URL"
+                        />
+                        <Button type="button" variant="outline" onClick={addImageFromUrl} disabled={(formData.images && formData.images.length >= 5)}>
+                          Add URL
+                        </Button>
+                        <span className="text-sm text-gray-500">{(formData.images ? formData.images.length : 0)}/5</span>
                       </div>
+
+                      {formData.images && formData.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {formData.images.map((img, idx) => (
+                            <div key={idx} className="relative h-16 w-16 rounded overflow-hidden bg-gray-100">
+                              <img src={img} alt="" className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeImage(idx)}
+                                className="absolute top-1 right-1 bg-white/90 rounded-full p-1"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -279,6 +388,7 @@ const AdminDashboard = () => {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           <Card>
@@ -301,6 +411,7 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Image</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Subcategory</TableHead>
@@ -311,6 +422,23 @@ const AdminDashboard = () => {
                   <TableBody>
                     {filteredProducts.map((product) => (
                       <TableRow key={product.id}>
+                        <TableCell>
+                          <div className="h-10 w-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                            {product.image ? (
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs text-gray-400">N/A</span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{product.category}</TableCell>
                         <TableCell>{product.subcategory}</TableCell>
